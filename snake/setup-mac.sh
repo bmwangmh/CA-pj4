@@ -100,10 +100,17 @@ else
   rm -rf "$tmp"
   say "Toolchain installed -> $TOOLCHAIN_DST"
 fi
-# Always ensure the binaries are runnable (extraction can drop the +x bit) and
-# not quarantined, otherwise gcc fails with "Permission denied" (Error 126).
+# Make the binaries runnable. On Apple Silicon an unsigned x86_64 binary is
+# rejected with "Permission denied" (Error 126) even with +x set and no
+# quarantine — it must be ad-hoc code-signed. Do that for every executable/dylib.
 chmod -R +x "$TOOLCHAIN_DST" 2>/dev/null || true
 xattr -dr com.apple.quarantine "$TOOLCHAIN_DST" 2>/dev/null || true
+if [ "$(uname -m)" = "arm64" ] && ! "$TOOLCHAIN_DST/bin/riscv64-unknown-elf-gcc" --version >/dev/null 2>&1; then
+  say "Ad-hoc code-signing the toolchain (Apple Silicon requirement)..."
+  find "$TOOLCHAIN_DST" \( -name '*.dylib' -o -perm -100 \) -type f \
+    -exec codesign --force --sign - {} \; 2>/dev/null || \
+    warn "codesign step had issues; if gcc still fails, ensure Xcode CLT is installed."
+fi
 
 # ---- 3. build ---------------------------------------------------------------
 say "Building..."
