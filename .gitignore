@@ -1,0 +1,18 @@
+# PlatformIO build output
+.pio/
+**/.pio/
+
+# IDE / editor
+.idea/
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Large archives / uploads (templates, toolchains) — not for VCS
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tar.xz
