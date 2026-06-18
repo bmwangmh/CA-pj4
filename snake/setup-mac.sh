@@ -80,10 +80,10 @@ fi
 # The fork hosts it on its own GitHub release, which modern PlatformIO can't
 # resolve automatically — so we fetch and drop it in by hand, same as the
 # framework. (curl downloads aren't Gatekeeper-quarantined, so it just runs.)
-if [ -x "$TOOLCHAIN_DST/bin/riscv64-unknown-elf-gcc" ]; then
-  say "toolchain-gd32v-mac already installed — skipping."
+if [ -f "$TOOLCHAIN_DST/package.json" ] && [ -f "$TOOLCHAIN_DST/bin/riscv64-unknown-elf-gcc" ]; then
+  say "toolchain-gd32v-mac already present — skipping download."
 else
-  say "Downloading the macOS RISC-V toolchain (~100 MB)..."
+  say "Downloading the macOS RISC-V toolchain (~200 MB)..."
   tmp="$(mktemp -d)"
   curl -L --fail -o "$tmp/tc.tar.gz" "$TOOLCHAIN_URL" || die "toolchain download failed."
   say "Extracting toolchain..."
@@ -97,10 +97,13 @@ else
   # PlatformIO needs a manifest with a matching name/version; no "system"
   # field so it's accepted on arm64 (binaries run under Rosetta).
   printf '{"name": "toolchain-gd32v-mac", "version": "9.2.0"}\n' > "$TOOLCHAIN_DST/package.json"
-  xattr -dr com.apple.quarantine "$TOOLCHAIN_DST" 2>/dev/null || true
   rm -rf "$tmp"
   say "Toolchain installed -> $TOOLCHAIN_DST"
 fi
+# Always ensure the binaries are runnable (extraction can drop the +x bit) and
+# not quarantined, otherwise gcc fails with "Permission denied" (Error 126).
+chmod -R +x "$TOOLCHAIN_DST" 2>/dev/null || true
+xattr -dr com.apple.quarantine "$TOOLCHAIN_DST" 2>/dev/null || true
 
 # ---- 3. build ---------------------------------------------------------------
 say "Building..."
