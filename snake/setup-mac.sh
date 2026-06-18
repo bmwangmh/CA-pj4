@@ -15,9 +15,11 @@
 set -euo pipefail
 
 # ---- locate the project (this script lives in snake/) -----------------------
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PIO_PKGS="$HOME/.platformio/packages"
 FRAMEWORK_DST="$PIO_PKGS/framework-gd32vf103-sdk"
+TOOLCHAIN_DST="$PIO_PKGS/toolchain-gd32v-mac"
+TOOLCHAIN_URL="https://github.com/yesitsme007/platformio-gd32v-mac-unofficial-repo/releases/download/0.0.1/riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-apple-darwin.tar.gz"
 
 say()  { printf '\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m!!  %s\033[0m\n' "$*"; }
@@ -72,6 +74,32 @@ else
   cp -R "$FRAMEWORK_SRC" "$FRAMEWORK_DST"
   say "Copied framework -> $FRAMEWORK_DST"
   grep '"name"\|"version"' "$FRAMEWORK_DST/package.json" || true
+fi
+
+# ---- 2b. make sure the macOS toolchain is installed -------------------------
+# The fork hosts it on its own GitHub release, which modern PlatformIO can't
+# resolve automatically — so we fetch and drop it in by hand, same as the
+# framework. (curl downloads aren't Gatekeeper-quarantined, so it just runs.)
+if [ -x "$TOOLCHAIN_DST/bin/riscv64-unknown-elf-gcc" ]; then
+  say "toolchain-gd32v-mac already installed — skipping."
+else
+  say "Downloading the macOS RISC-V toolchain (~100 MB)..."
+  tmp="$(mktemp -d)"
+  curl -L --fail -o "$tmp/tc.tar.gz" "$TOOLCHAIN_URL" || die "toolchain download failed."
+  say "Extracting toolchain..."
+  tar xzf "$tmp/tc.tar.gz" -C "$tmp"
+  bindir="$(find "$tmp" -maxdepth 4 -type d -name bin | head -n1 || true)"
+  [ -n "$bindir" ] || die "could not locate bin/ inside the toolchain archive."
+  root="$(dirname "$bindir")"
+  rm -rf "$TOOLCHAIN_DST"
+  mkdir -p "$TOOLCHAIN_DST"
+  cp -R "$root"/. "$TOOLCHAIN_DST"/
+  # PlatformIO needs a manifest with a matching name/version; no "system"
+  # field so it's accepted on arm64 (binaries run under Rosetta).
+  printf '{"name": "toolchain-gd32v-mac", "version": "9.2.0"}\n' > "$TOOLCHAIN_DST/package.json"
+  xattr -dr com.apple.quarantine "$TOOLCHAIN_DST" 2>/dev/null || true
+  rm -rf "$tmp"
+  say "Toolchain installed -> $TOOLCHAIN_DST"
 fi
 
 # ---- 3. build ---------------------------------------------------------------
