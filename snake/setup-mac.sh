@@ -79,13 +79,19 @@ say "Building..."
 cd "$PROJECT_DIR"
 pio run
 
-# ---- 4. optional flash ------------------------------------------------------
+# ---- 4. optional flash (via dfu-util, the method proven on this board) -------
+FW="$PROJECT_DIR/.pio/build/sipeed-longan-nano/firmware.bin"
 if [ "${1:-}" = "upload" ] || [ "${1:-}" = "flash" ]; then
+  command -v dfu-util >/dev/null 2>&1 || die "dfu-util not found (brew install dfu-util)."
+  [ -f "$FW" ] || die "built firmware not found at $FW"
   echo
-  warn "Put the board in DFU mode now: hold BOOT0, tap RESET, release BOOT0."
-  read -r -p "Press Enter when ready to flash... " _
-  say "Flashing over DFU..."
-  pio run -t upload
+  warn "Put the board in DFU mode: hold BOOT0, tap RESET, release BOOT0."
+  read -r -p "Press Enter once the board appears in 'dfu-util -l'... " _
+  say "Flashing $FW ..."
+  # The two messages 'Invalid DFU suffix signature' and
+  # 'Error during download get_status' are EXPECTED on GD32 — ignore them.
+  dfu-util -a 0 --dfuse-address 0x08000000:leave -D "$FW" || true
+  warn "Press the RESET button on the board to exit DFU and run the game."
 fi
 
 say "Done."
